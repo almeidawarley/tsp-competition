@@ -1,24 +1,38 @@
 import env
+import os
 
-def simulate_solution(instance, solution, flag = True):
+def check_solution(instance, solution, flag = False):
     # Simulate solution
     time, reward, penalty, feasibility = instance.check_solution(solution)
     if flag:
-        print('Solution: ', solution)
         print('Time: ', time)
         print('Reward: ', reward)
         print('Penalty: ', penalty)
         print('Feasibility: ', feasibility)
-    return reward, feasibility
+    return time, reward, penalty, feasibility
 
-instance = env.Env(from_file = True,  
-    x_path = 'data/valid/instances/instance0001.csv', 
-    adj_path = 'data/valid/adjs/adj-instance0001.csv')
-solutions = [
-    [1, 19, 3, 14, 20, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18],
-    [1, 11, 7, 16, 2, 13, 5, 1, 3, 4, 6, 8, 9, 10, 12, 14, 15, 17, 18, 19, 20]
-]
-runs = 1
+# instance = env.Env(from_file = True,  
+#    x_path = 'data/valid/instances/instance0001.csv', 
+#    adj_path = 'data/valid/adjs/adj-instance0001.csv')
+instance = env.Env(55, seed=3119615)
 
-for solution in solutions:
-    simulate_solution(instance, solution)
+folder = 'solutions/'
+
+runs = 10 ** 3
+for entry in os.listdir(folder):
+    if '.out' in entry:
+        solution = []
+        path = os.path.join(folder, entry)
+        with open(path) as content:
+            for line in content:
+                line = line.replace(',', '')
+                solution.append(int(line))
+        print('Path: ', path)
+        print('Solution: ', solution)
+        average = 0
+        counter = 0
+        while counter < runs:
+            _, reward, penalty, _ = check_solution(instance, solution)
+            average += reward + penalty
+            counter += 1
+        print('Objective: ', average/runs)
