@@ -1,8 +1,8 @@
 import env
+import uuid as ui
 import numpy as np
 import cplex as cp
 import time as tm
-
 
 def name_variablex(i, j):
     # Name variable x for arc (i,j)
@@ -224,7 +224,7 @@ def create_restriction(instance, solver, size):
     names = []
 
     # Create tour size constraint    
-    senses.append('E')
+    senses.append('L')
     names.append('rst')
     coefficients = []
     variables = []
@@ -274,7 +274,9 @@ def cut_unreachable_nodes(instance, solver):
     rhs = []
     names = []
 
-    # Parse the instance nodes accordingly
+    counter = 0
+
+    # Parse the instance nodes accortdingly
     for i in instance.nodes:
 
         # True if it is not possible to reach the node stright from depot
@@ -284,6 +286,8 @@ def cut_unreachable_nodes(instance, solver):
 
         # If the node has one of the two characteristics, cut it
         if first or second:
+
+            counter += 1
 
             # Create unreachable node cut
             senses.append('E')
@@ -301,6 +305,7 @@ def cut_unreachable_nodes(instance, solver):
             rows.append([variables,coefficients])
 
     solver.linear_constraints.add(lin_expr = rows, senses = senses, rhs = rhs, names = names)
+    return counter
 
 def cut_unreachable_arcs(instance, solver):
     # Cut unreachable arcs
@@ -353,10 +358,10 @@ def build_model(instance):
     create_ordering_constraint(instance, solver)
     
     # Create cuts according to the instance
-    cut_unreachable_nodes(instance, solver)
+    unreachable = cut_unreachable_nodes(instance, solver)
     cut_unreachable_arcs(instance, solver)
 
-    return solver
+    return solver, unreachable
 
 def run_model(instance, solver, size):
     # Run model P(s)
@@ -365,7 +370,10 @@ def run_model(instance, solver, size):
     create_restriction(instance, solver, size)
 
     # Run the solver
-    solver.solve()
+    try:
+        solver.solve()
+    except:
+        return {}
 
     # Retrieve the solution
     objective = solver.solution.get_objective_value()
@@ -382,20 +390,46 @@ def run_model(instance, solver, size):
     return solution
 
 
-def check_performance(instance, solution, flag = False):
+def check_performance(instance, solution, iterations = 10 ** 4, flag = False):
     # Check solution performance
 
-    # Call black-box simulator
-    time, reward, penalty, feasibility = instance.check_solution(solution)
+    # Create average variables
+    avg_time = 0
+    avg_reward = 0
+    avg_penalty = 0
+    percentage = 0
+
+    counter = 0
+    while counter < iterations:
+
+        # Call black-box simulator
+        time, reward, penalty, feasible = instance.check_solution(solution)
+
+        # Update average variables
+        avg_time += time
+        avg_reward += reward
+        avg_penalty += penalty
+        percentage += 1 if feasible else 0
+
+        counter += 1
+
+    avg_time /= iterations
+    avg_reward /= iterations
+    avg_penalty /= iterations
+    percentage /= iterations
+    avg_objective = avg_reward + avg_penalty
 
     # Print relevant information
     if flag:
-        print('Time: ', time)
-        print('Reward: ', reward)
-        print('Penalty: ', penalty)
-        print('Feasibility: ', feasibility)
+        print('Solution: ', solution)
+        print('Performance for', iterations, 'iterations')
+        print('Objective: ', avg_objective)
+        print('Time: ', avg_time)
+        print('Reward: ', avg_reward)
+        print('Penalty: ', avg_penalty)
+        print('Percentage: ', percentage)
 
-    return reward, feasibility
+    return avg_objective, avg_reward, percentage
 
 
 def format_solution(instance, solution):
@@ -426,77 +460,137 @@ def format_solution(instance, solution):
 
     return formatted
 
+def tracker_approach(instance, iterations = 10 ** 3, mode = 'w', threshold = 0.8):
+    # Run tracker approach
 
-# Instance information
-instance = env.Env(from_file = True,  
-    x_path = 'data/valid/instances/instance0999.csv', 
-    adj_path = 'data/valid/adjs/adj-instance0999.csv')
-instance = env.Env(55, seed=3119615) 
+    assert mode in ['w', 'x', 'a', 'r']
 
-# Instance adjustements
-instance.nodes = list(range(1, instance.n_nodes + 1))
-instance.rewards = instance.x[:, -2]
-instance.maximum = instance.x[:, -1][1]
-instance.opening = instance.x[:, -4]
-instance.closing = instance.x[:, -3]
+    # Global variables
+    best_solution = []
+    best_objective = -1
 
-# Global variables
-best_solution = []
-best_reward = -1
-iterations = 10 ** 5
+    # Estimate times
+    if mode == 'w':
+        weights = 1
+    elif mode == 'x':
+        weights = 0.9
+    elif mode == 'a':
+        weights = 0.5
+    else:
+        weights = np.random.rand(instance.n_nodes, instance.n_nodes)
+    instance.times = weights * instance.adj
 
-# Estimate times
-weights = np.random.rand(instance.n_nodes, instance.n_nodes)
-# instance.times = weights * instance.adj
-instance.times = 1 * instance.adj
+    # Build model P(s)
+    solver, unreachable = build_model(instance)
 
-# Build model P(s)
-solver = build_model(instance)
+    # Iterative approach
+    size = 2
+    counter = 0
+    cuts = 0
+    feasible = True
+    # Maximum size of the tour
+    maximum = instance.n_nodes - unreachable
 
-# Iterative approach
-size = 2
-counter = 0
-cuts = 0
+    # Save start time
+    start = tm.time()
 
-# Save start time
-start = tm.time()
+    # Iterate until reaching maximum number of iterations or maximum size of the tour or the model is no longer feasible
+    while counter < iterations and size < maximum and feasible:
 
-# Iterate until reaching maximum number of iterations or maximum size of the tour
-while counter < iterations and size < instance.n_nodes:
+        # Obtain solution from model with current size
+        solution = run_model(instance, solver, size)
+        #print('Raw solution: ', solution)
 
-    # Obtain solution from model with current size
-    solution = run_model(instance, solver, size)
-    #print('Raw solution: ', solution)
+        # If the model remains feasible, keep runing the iterative approach
+        feasible = len(solution) != 0
 
-    # Format solution in an understandable manner
-    solution = format_solution(instance, solution)
-    # print('Formatted solution: ', solution)
+        if feasible:
 
-    # Check solution performance
-    reward, feasibility = check_performance(instance, solution)
+            # Format solution in an understandable manner
+            solution = format_solution(instance, solution)
+            # print('Formatted solution: ', solution)
 
-    # If the solution is feasible, increase maximum size of the tour
-    if feasibility:        
-        # Store current solution if it is the best one yet
-        if reward > best_reward:
-            best_solution = solution
-            best_reward = reward
-        size += 1
-        # print('Solution feasible')
-    # If the solution is infeasible, cut infeasible solution
-    else:        
-        cut_infeasible(solver, solution, cuts)
-        cuts += 1
-        # print('Solution infeasible')
-    counter += 1
-    print('Solution at iteration #{}: {} [r: {}, s: {}]'.format(counter, best_solution, best_reward, size))
+            # Check solution performance
+            objective, reward, percentage = check_performance(instance, solution)
 
-# Save end time
-end = tm.time()
+            # If the solution is feasible most of the time, increase maximum size of the tour
+            if percentage >= threshold:      
+                # Store current solution if it is the best one yet
+                if reward > best_objective:
+                    best_solution = solution
+                    best_objective = round(reward, 4)
+                size += 1
+                # print('Solution feasible')
+            # If the solution is infeasible, cut infeasible solution
+            else:
+                cut_infeasible(solver, solution, cuts)
+                cuts += 1
+                # print('Solution infeasible')
+            counter += 1
+            print('Iteration #{}: {} [Objective: {}, Size: {}]'.format(counter, best_solution, best_objective, size))
+        
+        # If the model no longer feasible, log information and output the best solution
+        else:
+            print('The model is no longer feasible due to the tracked information')
 
-# Performance summary
-print('Counter: ', counter)
-print('Size: ', size)
-print('Best reward: ', best_reward)
-print('Best solution: ', best_solution)
-print('Time: ', end - start)
+    # Save end time
+    end = tm.time()
+
+    # Performance summary
+    print('Mode: {}'.format(mode))
+    print('Feasible: {}'.format(feasible))
+    print('Counter: {} out of {}'.format(counter, iterations))
+    print('Size: {} out of {}'.format(size, maximum))
+    print('Best objective: {}'.format(best_objective))
+    print('Best solution: {}'.format(best_solution))
+    print('Total time: {}'.format(end - start))
+
+    export_solution(best_solution)
+
+    return best_solution
+
+def export_solution(solution):
+    # Export solution to .out file
+
+    name = str(ui.uuid4())[0:8] + '.out'
+    with open('solutions/{}'.format(name), 'w') as output:
+        for node in solution:
+            output.write('{}\n'.format(node))
+
+    print('Exported to file {}'.format(name))
+    
+    return name
+
+def load_instance(identifier):
+    # Load instance from file
+
+    instance = env.Env(from_file = True,  
+        x_path = 'data/valid/instances/{}.csv'.format(identifier), 
+        adj_path = 'data/valid/adjs/adj-{}.csv'.format(identifier))
+
+    return instance
+
+def load_validation():
+    # Load validation instance
+
+    instance = env.Env(55, seed=3119615)
+
+    return instance
+
+def adjust_instance(instance):
+    # Perform instance adjustements
+
+    instance.nodes = list(range(1, instance.n_nodes + 1))
+    instance.rewards = instance.x[:, -2]
+    instance.maximum = instance.x[:, -1][1]
+    instance.opening = instance.x[:, -4]
+    instance.closing = instance.x[:, -3]
+
+    return instance
+
+
+if __name__ == "__main__":
+    # instance = load_instance('instance0001')
+    instance = load_validation()
+    instance = adjust_instance(instance)
+    solution = tracker_approach(instance, 5000)
