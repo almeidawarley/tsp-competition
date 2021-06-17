@@ -80,56 +80,56 @@ class Dico:
     return keystr
 
 
-def readEntry(self, individu):
-  """
-  Function that will retrieve the collected pts associated with a given tour so far.
-  Return a list of pts if it exists, and None otherwise.
-  """
-  # Get the dico key associated with that individu
-  keystr = self.TabToKey(individu)
+  def readEntry(self, individu):
+    """
+    Function that will retrieve the collected pts associated with a given tour so far.
+    Return a list of pts if it exists, and None otherwise.
+    """
+    # Get the dico key associated with that individu
+    keystr = self.TabToKey(individu)
 
-  if keystr in self.dico:
-    # Return the list of pts
-    return self.dico[keystr]
-  else:
-    # Return None
-    return None
-
-
-def KeyToTab(self, keystr):
-  """
-  Function that will transform a dico key into an individu table that includes
-  all the nodes from the instance problem, but what comes after the return to
-  the base has been thrown there in no particular order.
-  """
-  table = keystr.split("&")
-  individu = []
-  flag_matrix = [0] * (self.N + 1)
-
-  for g in table:
-    # Add first the nodes that are part of the tour
-    individu.append(int(g))
-    flag_matrix[int(g)] = 1
-  for i in range(1, len(flag_matrix) + 1):
-    # Then, complete with the nodes that will not be visited
-    if flag_matrix[i] == 0:
-      individu.append(i)
-  return individu
+    if keystr in self.dico:
+      # Return the list of pts
+      return self.dico[keystr]
+    else:
+      # Return None
+      return None
 
 
-def getBestEntry(self):
-  """
-  Function that returns the best entry so far, in the key, value fashion.
-  The value is the average value obtained by a given tour.
-  """
-  # The baseline in this case is to not move
-  best_key = "1&"
-  best_pts = 0
-  for keystr, pts_vec in self.dico.items():
-    # Compute the average for every dico entry and keep the best
-    mean_pts = statistics.mean(pts_vec)
-    if  mean_pts < best_pts:
-      best_pts = mean_pts
-      best_key = keystr
+  def KeyToTab(self, keystr):
+    """
+    Function that will transform a dico key into an individu table that includes
+    all the nodes from the instance problem, but what comes after the return to
+    the base has been thrown there in no particular order.
+    """
+    table = keystr.split("&")[:-1]
+    individu = []
+    flag_matrix = [0] * (self.N + 1)
 
-  return self.KeyToTab(best_key), best_pts
+    for g in table:
+      # Add first the nodes that are part of the tour
+      individu.append(int(g))
+      flag_matrix[int(g)] = 1
+    for i in range(1, len(flag_matrix)):
+      # Then, complete with the nodes that will not be visited
+      if flag_matrix[i] == 0:
+        individu.append(i)
+    return individu
+
+
+  def getBestEntry(self):
+    """
+    Function that returns the best entry so far, in the key, value fashion.
+    The value is the average value obtained by a given tour.
+    """
+    # The baseline in this case is to not move
+    best_key = "1&"
+    best_pts = 0
+    for keystr, pts_vec in self.dico.items():
+      # Compute the average for every dico entry and keep the best
+      mean_pts = statistics.mean(pts_vec)
+      if  mean_pts > best_pts:
+        best_pts = mean_pts
+        best_key = keystr
+
+    return self.KeyToTab(best_key), best_pts

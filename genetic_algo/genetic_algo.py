@@ -3,6 +3,7 @@ import genetic_operators as GO
 
 import numpy as np
 import random
+import time
 
 from env import Env
 
@@ -118,18 +119,49 @@ if __name__ == '__main__':
   seed : random seed
   generation_num : number of population generation, used as stopping criterion.
   """
-  nodes_num = 5
-  seed = 12345
-  generation_num = 30
+  # PARAMETERS
+  nodes_num = 55
+  seed = 3119615
+  generation_num = 2
+  population_num = 4992
+  parents_num = 158
+  save_under = "env-" + str(nodes_num) + "-" + str(seed) \
+    + "_pop-" + str(population_num) + "-" + str(parents_num) + "_gen-"
 
+  # INIT PHASE
+  time1 = time.time()
+  print("---------------------------------------- \n Genetic Algorithm \n ---------------------------------------- \n")
   env = Env(nodes_num, seed=seed)
 
-  darwin = GeneticAlgo(nodes_num, env)
+  darwin = GeneticAlgo(nodes_num, env, population_num, parents_num)
   darwin.evaluation()
+  time_elapsed1 = time.time() - time1
+  print("Environment creation and population initialisation done in : ", time_elapsed1)
+  print("Starting evolution process")
 
+  # EVOLUTION PHASE
   for i in range(0, generation_num):
+    time2 = time.time()
+
     darwin.selection()
+    time_sel = time.time()
+    print("End of selection    " + str(i), time_sel - time2)
+
     darwin.reproduction()
+    time_rep = time.time()
+    print("End of reproduction " + str(i), time_rep - time_sel)
+
     darwin.mutation()
+    time_mut = time.time()
+    print("End of mutation     " + str(i), time_mut - time_rep)
+
     darwin.evaluation()
-  darwin.save_progress()
+    time_eva = time.time()
+    print("End of evaluation   " + str(i), time_eva - time_mut)
+
+    if (i+1) % 10 == 0:
+      darwin.save_progress(save_under + str(i) + ".json")
+    best_tour, pts = darwin.dico.getBestEntry()
+    print("Best tour so far at gen " + str(i) + " with " + str(pts) + " pts.")
+    print(*([1] + best_tour), sep = ", ")
+    print("\n ---------------------------------------- \n")
