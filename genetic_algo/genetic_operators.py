@@ -84,7 +84,7 @@ class GeneticOperators:
         return
       else:
         # Pointage matches against two adjacent adversaries
-        for i in range(1, len(advers)//2, 1):
+        for i in range(1, len(advers)//2 + 1, 1):
           if advers[i-1][1] < advers[i][1]:
             advers.pop(i-1)
           else:

@@ -124,7 +124,7 @@ if __name__ == '__main__':
   seed = 3119615
   generation_num = 2
   population_num = 4992
-  parents_num = 158
+  parents_num = 156
   save_under = "env-" + str(nodes_num) + "-" + str(seed) \
     + "_pop-" + str(population_num) + "-" + str(parents_num) + "_gen-"
 
