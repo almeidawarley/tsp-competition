@@ -337,6 +337,30 @@ def cut_unreachable_arcs(instance, solver):
 
     solver.linear_constraints.add(lin_expr = rows, senses = senses, rhs = rhs, names = names)
 
+def clear_constraints(instance, solver):
+    # Remove unreachable cuts
+
+    # Parse the instance nodes accortdingly
+    for i in instance.nodes:
+
+        # True if it is not possible to reach the node stright from depot
+        first = instance.times[0][i-1] > instance.closing[i-1]
+        # True if it is not possible to reach the depot stright from node
+        second = instance.opening[i-1] + instance.times[i-1][0] > instance.maximum
+
+        # If the node has one of the two characteristics, remove unreachable constraint
+        if first or second:
+            solver.linear_constraints.delete('unr_' + str(i))
+
+        for j in instance.nodes:
+
+            # True if leaving the earliest from node i cannot reach node j in time
+            third = instance.opening[i-1] + instance.times[i-1][j-1] > instance.closing[j-1]            
+            
+            # If the arc has the characteristic, remove unreachable constraint
+            if third:
+                solver.linear_constraints.delete('unr_' + str(i) + '_' + str(j))
+
 def build_model(instance):
     # Build model P(s)
 
@@ -467,7 +491,7 @@ def tracker_approach(instance, iterations = 10 ** 3, mode = 'w', threshold = 0.8
 
     # Global variables
     best_solution = []
-    best_objective = -1
+    best_objective = -1 * np.inf
 
     # Estimate times
     if mode == 'w':
@@ -488,14 +512,23 @@ def tracker_approach(instance, iterations = 10 ** 3, mode = 'w', threshold = 0.8
     counter = 0
     cuts = 0
     feasible = True
+    cleared = False
     # Maximum size of the tour
-    maximum = instance.n_nodes - unreachable
+    maximum = instance.n_nodes - unreachable + 1
 
     # Save start time
     start = tm.time()
 
     # Iterate until reaching maximum number of iterations or maximum size of the tour or the model is no longer feasible
     while counter < iterations and size < maximum and feasible:
+
+        '''
+        # Remove unreachable constraints for the last 50% of the iterations
+        if counter > 0.1 * iterations and not cleared:
+            print('Clearing unreachable constraints at iteration #{}'.format(counter))
+            cleared = True
+            clear_constraints(instance, solver)
+        '''
 
         # Obtain solution from model with current size
         solution = run_model(instance, solver, size)
@@ -511,15 +544,15 @@ def tracker_approach(instance, iterations = 10 ** 3, mode = 'w', threshold = 0.8
             # print('Formatted solution: ', solution)
 
             # Check solution performance
-            objective, reward, percentage = check_performance(instance, solution)
+            objective, reward, percentage = check_performance(instance, solution, 100)
 
             # If the solution is feasible most of the time, increase maximum size of the tour
             if percentage >= threshold:      
                 # Store current solution if it is the best one yet
-                if reward > best_objective:
+                if objective > best_objective:
                     best_solution = solution
-                    best_objective = round(reward, 4)
-                size += 1
+                    best_objective = round(objective, 4)
+                    size += 1
                 # print('Solution feasible')
             # If the solution is infeasible, cut infeasible solution
             else:
@@ -573,7 +606,7 @@ def load_instance(identifier):
 def load_validation():
     # Load validation instance
 
-    instance = env.Env(55, seed=3119615)
+    instance = env.Env(55, seed = 3119615)
 
     return instance
 
@@ -593,4 +626,4 @@ if __name__ == "__main__":
     # instance = load_instance('instance0001')
     instance = load_validation()
     instance = adjust_instance(instance)
-    solution = tracker_approach(instance, 5000)
+    solution = tracker_approach(instance, 3000)

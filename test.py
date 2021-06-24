@@ -1,6 +1,7 @@
 import main as mn
 import env
 import os
+import sys
 
 instance = mn.load_validation()
 instance = mn.adjust_instance(instance)
@@ -8,12 +9,17 @@ instance = mn.adjust_instance(instance)
 folder = 'solutions/'
 ref_objective = 5
 ref_percentage = 0.75
+ref_solution = ''
 
-print('Listing solutions with objective greater than {} and feasible at least {}%'
-    .format(round(ref_objective, 2), round(100*ref_percentage, 0)))
+if len(sys.argv) > 1:
+    ref_solution = sys.argv[1]
+    print('Listing information for solution {}'.format(ref_solution))
+else:
+    print('Listing all solutions with objective greater than {} and feasible at least {}%'
+        .format(round(ref_objective, 2), round(100*ref_percentage, 0)))
 
 for entry in os.listdir(folder):
-    if '.out' in entry:
+    if '.out' in entry and ref_solution in entry:
         solution = []
         path = os.path.join(folder, entry)
         with open(path) as content:
