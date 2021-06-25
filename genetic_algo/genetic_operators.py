@@ -15,7 +15,7 @@ class GeneticOperators:
 
   def chooseAB(self, amin, bmax):
     """
-    Function that returns a and b tq amin <= a <= b <= bmax.
+    Function that returns a and b tq amin <= a <= b < bmax.
     """
     a = np.random.randint(amin, bmax)
     b = np.random.randint(amin, bmax)
@@ -31,10 +31,10 @@ class GeneticOperators:
     Crossing operator that creates 2 children from parent1 and parent2.
     """
     # TODO : Maybe control the span of the reserved section?
-    a, b = self.chooseAB(0, self.N)
+    a, b = self.chooseAB(0, len(parent1))
     child1 = []
     child2 = []
-    for i in range(0, self.N):
+    for i in range(0, len(parent1)):
       # Copy the parent into the child if the gene is not in the reserved
       # section [a:b] of the other parent.
       if not parent1[i] in parent2[a:b]:
@@ -53,10 +53,22 @@ class GeneticOperators:
     Mutation operator that creates a child from a parent.
     """
     # TODO Ensure permutation are effective (before return to base)
-    a, b = self.chooseAB(0, self.N)
+    a, b = self.chooseAB(0, len(parent))
     child = parent[:]
     child[a] = parent[b]
     child[b] = parent[a]
+    return child
+
+
+  def Permutation1(self, parent):
+    """
+    Permutation1
+    Mutation operator that makes sure 1 is not at first position in individu (to call if it is the case).
+    """
+    b = np.random.randint(1, len(parent))
+    child = parent[:]
+    child[0] = parent[b]
+    child[b] = parent[0]
     return child
 
 

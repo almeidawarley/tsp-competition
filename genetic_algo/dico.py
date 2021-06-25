@@ -117,19 +117,43 @@ class Dico:
     return individu
 
 
+  def selectEntries(self, lower_bound, tabToIndFunc=None):
+    """
+    Function that returns the individu-styled entries whose best pts or average pts
+    is bigger than the lower_bound. TabToIndFunc is a function passed to change the
+    tabs (tour without base departure) into individus.
+    """
+    # The baseline in this case is to not move
+    selection = []
+    if tabToIndFunc is None:
+      return selection
+    for keystr, pts_vec in self.dico.items():
+      # Compute the average and max for every dico entry
+      mean_pts = statistics.mean(pts_vec)
+      max_pts = max(pts_vec)
+      if (mean_pts > lower_bound) or (max_pts > lower_bound):
+        selection.append(tabToIndFunc(self.KeyToTab(keystr)))
+    return selection
+
+
   def getBestEntry(self):
     """
     Function that returns the best entry so far, in the key, value fashion.
     The value is the average value obtained by a given tour.
     """
     # The baseline in this case is to not move
-    best_key = "1&"
-    best_pts = 0
+    best_mean_key = "1&"
+    best_mean_pts = 0
+    best_run_key = "1&"
+    best_run_pts = 0
     for keystr, pts_vec in self.dico.items():
       # Compute the average for every dico entry and keep the best
       mean_pts = statistics.mean(pts_vec)
-      if  mean_pts > best_pts:
-        best_pts = mean_pts
-        best_key = keystr
-
-    return self.KeyToTab(best_key), best_pts
+      max_pts = max(pts_vec)
+      if mean_pts > best_mean_pts:
+        best_mean_pts = mean_pts
+        best_mean_key = keystr
+      if max_pts > best_run_pts:
+        best_run_pts = max_pts
+        best_run_key = keystr
+    return self.KeyToTab(best_mean_key), best_mean_pts, self.KeyToTab(best_run_key), best_run_pts
