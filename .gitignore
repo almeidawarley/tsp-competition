@@ -1,4 +1,7 @@
 /data/valid/**/*.csv
 
 __pycache__/
+local
+local/*.py
+local/*.zip
 
