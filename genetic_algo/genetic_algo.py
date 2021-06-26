@@ -2,6 +2,7 @@ import dico as DO
 import genetic_operators as GO
 
 import numpy as np
+import os
 import random
 import time
 
@@ -19,7 +20,7 @@ class GeneticAlgo:
   So far, the stopping criterion is a number of loops.
   """
 
-  def __init__(self, nodes_num, prob_instance, population_num=4992, parents_num=158, mutation_proba=0.05, dico_filename=None):
+  def __init__(self, nodes_num, prob_instance, population_num=4992, parents_num=158, mutation_proba=0.05, dico_filename=None, warmstart=True, wslb=6.0):
     """
     Constructor that needs the number of nodes in the problem instance. 
 
@@ -34,21 +35,86 @@ class GeneticAlgo:
     self.mutation_proba = mutation_proba
     self.dico = DO.Dico(self.N, dico_filename)
     self.operators = GO.GeneticOperators(self.N)
-    self.individus = self.initialisation()
+    self.corps, self.queue = self.parseInvalidNodes()
+    self.individus = self.initialisation(warmstart, wslb)
 
 
-  def initialisation(self):
+  def parseInvalidNodes(self):
+    """
+    Find the nodes that are unattainable during the tour and stock them apart.
+    Returns the list of attainable nodes «corps» and the list of unattainable nodes «queue»
+    """
+    corps = []
+    queue = []
+    for node in self.prob_instance.x:
+      if node[3] >= node[6]:
+        queue.append(node[0])
+      else:
+        corps.append(node[0])
+    return corps, queue
+
+
+  def initialisation(self, warmstart=True, wslb=6.0):
     """
     Initialise the population until there are self.P individus.
-    Return a list of individu (which is a list comprising a permutation of the range(1, self.N+1)).
+    Return a list of individus (an individu is a list comprising a permutation of the corps nodes).
     """
     # TODO : Initialise the population with something fancier than random individus.
     individus = []
+    if warmstart is True:
+      # If parameter activated, download first the good individus suggested by Warley.
+      # Also, pick the best mean and abs. solutions from the dico.
+      individus += self.warmDicoSolutions(wslb) + self.warmWarleySolutions()
     while len(individus) < self.P:
-      ind = list(range(1, self.N+1))
+      ind = self.corps[:]
       random.shuffle(ind)
+      if ind[0] == 1:
+        ind = self.operators.Permutation1(ind)
       individus.append(ind)
     return individus
+
+
+  def warmDicoSolutions(self, wslb=6.0):
+    """
+    Reads from the dico the best solutions found both in the abs. case and in the mean case.
+    Those solutions have to be better than a certain lower bound wslb.
+    Return the individus list.
+    """
+    warm = self.dico.selectEntries(wslb, self.tourToIndividu)
+    return warm
+
+
+  def warmWarleySolutions(self):
+    """
+    Reads from a folder named warley the best solutions found by Warley and adds
+    them to an array in the individu format. That means the first one, the queue nodes
+    and the nodes after the second one must be removed.
+    Return the individus list.
+    """
+    warm = []
+    directory = os.path.join(os.getcwd(), "warley")
+    for entry in os.scandir(directory):
+      if entry.path.endswith(".out") and entry.is_file():
+        a_file = open(entry, "r")
+        lines = a_file.read().splitlines()
+        warm.append(self.tourToIndividu(lines, True))
+    return warm
+
+
+  def tourToIndividu(self, tour, isString=False):
+    """
+    Function that transforms a full tour (with departure from base and all nodes written)
+    into an individu (comprising only the corps part).
+    """
+    ind = []
+    if isString and int(tour[0]) == 1:
+      tour = tour[1:]
+    for node in tour:
+      if isString:
+        node = int(node)
+      if not node in self.queue:
+        ind.append(node)
+    return ind
 
 
   def evaluation(self):
@@ -60,7 +126,7 @@ class GeneticAlgo:
     candidates = []
     base = [1]
     for individu in self.individus:
-      tour = base + individu
+      tour = base + individu + self.queue
       obj_cost, rewards, pen, feas = self.prob_instance.check_solution(tour)
       fitness = self.dico.writeEntry(individu, rewards + pen)
       candidates.append([individu, rewards + pen, fitness])
@@ -84,10 +150,10 @@ class GeneticAlgo:
     # TODO : Try various crossing operators
     children = []
     while len(children) < self.P:
-      a = np.random.randint(0, self.K)
-      b = np.random.randint(0, self.K)
+      a = np.random.randint(0, len(self.individus))
+      b = np.random.randint(0, len(self.individus))
       while a == b:
-        b = np.random.randint(0, self.K)
+        b = np.random.randint(0, len(self.individus))
       child1, child2 = self.operators.NWOX(self.individus[a], self.individus[b])
       children.append(child1)
       children.append(child2)    
@@ -101,6 +167,8 @@ class GeneticAlgo:
     for i in range(0, self.P):
       if np.random.random() <= self.mutation_proba:
         self.individus[i] = self.operators.Permutation(self.individus[i])
+      if self.individus[i][0] == 1:
+        self.individus[i] = self.operators.Permutation1(self.individus[i])
   
 
   def save_progress(self, dico_filename=None):
@@ -122,10 +190,12 @@ if __name__ == '__main__':
   # PARAMETERS
   nodes_num = 55
   seed = 3119615
-  generation_num = 2
-  population_num = 4992
-  parents_num = 156
-  save_under = "env-" + str(nodes_num) + "-" + str(seed) \
+  generation_num = 50
+  population_num = 40000
+  parents_num = 625
+  warm_dico_sol_lb = 5.0
+  dico_filename = os.path.join(os.getcwd(), "env-55-3119615_pop-40000-625_gen-49.json")
+  save_under = time.strftime("%Y%m%d-%H%M%S") + "-env-" + str(nodes_num) + "-" + str(seed) \
     + "_pop-" + str(population_num) + "-" + str(parents_num) + "_gen-"
 
   # INIT PHASE
@@ -133,7 +203,9 @@ if __name__ == '__main__':
   print("---------------------------------------- \n Genetic Algorithm \n ---------------------------------------- \n")
   env = Env(nodes_num, seed=seed)
 
-  darwin = GeneticAlgo(nodes_num, env, population_num, parents_num)
+  darwin = GeneticAlgo(
+    nodes_num, env, population_num, parents_num,
+    mutation_proba=0.05, dico_filename=dico_filename, warmstart=True, wslb=warm_dico_sol_lb)
   darwin.evaluation()
   time_elapsed1 = time.time() - time1
   print("Environment creation and population initialisation done in : ", time_elapsed1)
@@ -161,7 +233,9 @@ if __name__ == '__main__':
 
     if (i+1) % 10 == 0:
       darwin.save_progress(save_under + str(i) + ".json")
-    best_tour, pts = darwin.dico.getBestEntry()
-    print("Best tour so far at gen " + str(i) + " with " + str(pts) + " pts.")
+    best_mean_tour, best_mean_pts, best_tour, best_pts = darwin.dico.getBestEntry()
+    print("Best mean tour so far at gen " + str(i) + " with " + str(best_mean_pts) + " pts.")
+    print(*([1] + best_mean_tour), sep = ", ")
+    print("Best abs. tour so far at gen " + str(i) + " with " + str(best_pts) + " pts.")
     print(*([1] + best_tour), sep = ", ")
     print("\n ---------------------------------------- \n")
