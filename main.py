@@ -265,8 +265,8 @@ def cut_infeasible(solver, solution, cuts):
 
     solver.linear_constraints.add(lin_expr = rows, senses = senses, rhs = rhs, names = names)
 
-def cut_unreachable_nodes(instance, solver):
-    # Cut unreachable nodes
+def cut_unreachable(instance, solver):
+    # Cut (likely) unreachable nodes and arcs
 
     # Create auxiliary vectors
     rows = []
@@ -276,90 +276,48 @@ def cut_unreachable_nodes(instance, solver):
 
     counter = 0
 
-    # Parse the instance nodes accortdingly
+    # Create unreachable cut
+    coefficients = []
+    variables = []
+    senses.append('L')
+    names.append('unr')
+    rhs.append(0)
+
+    # Parse the instance nodes accordingly
     for i in instance.nodes:
+        for j in instance.nodes:
 
-        # True if it is not possible to reach the node stright from depot
-        first = instance.times[0][i-1] > instance.closing[i-1]
-        # True if it is not possible to reach the depot stright from node
-        second = instance.opening[i-1] + instance.times[i-1][0] > instance.maximum
+            # True if it is not possible to reach the node straight from depot
+            first = instance.times[0][i-1] > instance.closing[i-1]
+            # True if it is not possible to reach the depot straight from node
+            second = instance.opening[i-1] + instance.times[i-1][0] > instance.maximum
+            # True if leaving the earliest from node i cannot reach node j in time
+            third = instance.opening[i-1] + instance.times[i-1][j-1] > instance.closing[j-1]
 
-        # If the node has one of the two characteristics, cut it
-        if first or second:
-
-            counter += 1
-
-            # Create unreachable node cut
-            senses.append('E')
-            names.append('unr_' + str(i))
-            coefficients = []
-            variables = []
-            rhs.append(0)
-
-            for k in instance.nodes:
-                coefficients.append(1)
-                variables.append(name_variablex(i, k))
-                if i != k:
+            # If the node has an unreachable property, cut it
+            # If the arc has an unreachable property, cut it
+            if first or second or third:
+                counter += (first or second)
+                variable = name_variablex(i, j)
+                if variable not in variables:
+                    variables.append(variable)
                     coefficients.append(1)
-                    variables.append(name_variablex(k, i))
-            rows.append([variables,coefficients])
+
+    # Calculation to obtain number of unreachable nodes
+    counter = counter/instance.n_nodes
+
+    rows.append([variables,coefficients])
 
     solver.linear_constraints.add(lin_expr = rows, senses = senses, rhs = rhs, names = names)
     return counter
 
-def cut_unreachable_arcs(instance, solver):
-    # Cut unreachable arcs
+def relax_unreachable(instance, solver, step):
+    # Relax unreachable cut
 
-    # Create auxiliary vectors
-    rows = []
-    senses = []
-    rhs = []
-    names = []
+    print('Relaxing the unreachable cut constraint...')
+    rhs = solver.linear_constraints.get_rhs('unr')
+    solver.linear_constraints.set_rhs('unr', rhs + step)
 
-    # Parse the instance arcs accordingly
-    for i in instance.nodes:
-        for j in instance.nodes:
-
-            # True if leaving the earliest from node i cannot reach node j in time
-            third = instance.opening[i-1] + instance.times[i-1][j-1] > instance.closing[j-1]            
-            
-            # If the arc has the characteristic, cut it
-            if third:
-                # Create unreachable arc cut
-                senses.append('E')
-                names.append('unr_' + str(i) + '_' + str(j))
-                coefficients = []
-                variables = []
-                rhs.append(0)
-                coefficients.append(1)
-                variables.append(name_variablex(i, j))
-                rows.append([variables,coefficients])
-
-    solver.linear_constraints.add(lin_expr = rows, senses = senses, rhs = rhs, names = names)
-
-def clear_constraints(instance, solver):
-    # Remove unreachable cuts
-
-    # Parse the instance nodes accortdingly
-    for i in instance.nodes:
-
-        # True if it is not possible to reach the node stright from depot
-        first = instance.times[0][i-1] > instance.closing[i-1]
-        # True if it is not possible to reach the depot stright from node
-        second = instance.opening[i-1] + instance.times[i-1][0] > instance.maximum
-
-        # If the node has one of the two characteristics, remove unreachable constraint
-        if first or second:
-            solver.linear_constraints.delete('unr_' + str(i))
-
-        for j in instance.nodes:
-
-            # True if leaving the earliest from node i cannot reach node j in time
-            third = instance.opening[i-1] + instance.times[i-1][j-1] > instance.closing[j-1]            
-            
-            # If the arc has the characteristic, remove unreachable constraint
-            if third:
-                solver.linear_constraints.delete('unr_' + str(i) + '_' + str(j))
 
 def build_model(instance):
     # Build model P(s)
@@ -381,9 +339,8 @@ def build_model(instance):
     create_end_constraint(instance, solver)
     create_ordering_constraint(instance, solver)
     
-    # Create cuts according to the instance
-    unreachable = cut_unreachable_nodes(instance, solver)
-    cut_unreachable_arcs(instance, solver)
+    # Create unreachable cuts according to the instance
+    unreachable = cut_unreachable(instance, solver)
 
     return solver, unreachable
 
@@ -411,7 +368,9 @@ def run_model(instance, solver, size):
     # Remove tour size constraint
     solver.linear_constraints.delete('rst')
 
-    return solution
+    objective = round(objective, 4)
+
+    return objective, solution
 
 
 def check_performance(instance, solution, iterations = 10 ** 4, flag = False):
@@ -452,6 +411,9 @@ def check_performance(instance, solution, iterations = 10 ** 4, flag = False):
         print('Reward: ', avg_reward)
         print('Penalty: ', avg_penalty)
         print('Percentage: ', percentage)
+
+    avg_objective = round(avg_objective, 4)
+    avg_reward = round(avg_reward, 4)
 
     return avg_objective, avg_reward, percentage
 
@@ -512,9 +474,11 @@ def tracker_approach(instance, iterations = 10 ** 3, mode = 'w', threshold = 0.8
     counter = 0
     cuts = 0
     feasible = True
-    cleared = False
+
     # Maximum size of the tour
-    maximum = instance.n_nodes - unreachable + 1
+    maximum = instance.n_nodes + 1
+    # Frontier size of the tour
+    frontier = maximum - unreachable 
 
     # Save start time
     start = tm.time()
@@ -522,16 +486,8 @@ def tracker_approach(instance, iterations = 10 ** 3, mode = 'w', threshold = 0.8
     # Iterate until reaching maximum number of iterations or maximum size of the tour or the model is no longer feasible
     while counter < iterations and size < maximum and feasible:
 
-        '''
-        # Remove unreachable constraints for the last 50% of the iterations
-        if counter > 0.1 * iterations and not cleared:
-            print('Clearing unreachable constraints at iteration #{}'.format(counter))
-            cleared = True
-            clear_constraints(instance, solver)
-        '''
-
-        # Obtain solution from model with current size
-        solution = run_model(instance, solver, size)
+        # Obtain upper bound and solution from model with current size
+        bound, solution = run_model(instance, solver, size)
         #print('Raw solution: ', solution)
 
         # If the model remains feasible, keep runing the iterative approach
@@ -542,25 +498,28 @@ def tracker_approach(instance, iterations = 10 ** 3, mode = 'w', threshold = 0.8
             # Format solution in an understandable manner
             solution = format_solution(instance, solution)
             # print('Formatted solution: ', solution)
-
+            
             # Check solution performance
             objective, reward, percentage = check_performance(instance, solution, 100)
+            
+            # Store current solution if it is the best one yet
+            if objective > best_objective:
+                best_solution = solution
+                best_objective = objective
+                # Increase maximum size of the tour
+                size += 1
+                # Relax unreachable cut according to slack
+                if size > frontier:
+                    relax_unreachable(instance, solver, 2)
 
-            # If the solution is feasible most of the time, increase maximum size of the tour
-            if percentage >= threshold:      
-                # Store current solution if it is the best one yet
-                if objective > best_objective:
-                    best_solution = solution
-                    best_objective = round(objective, 4)
-                    size += 1
-                # print('Solution feasible')
-            # If the solution is infeasible, cut infeasible solution
-            else:
+            # If the solution is infeasible most of the time, cut infeasible solution
+            if percentage < threshold:
                 cut_infeasible(solver, solution, cuts)
                 cuts += 1
                 # print('Solution infeasible')
+
             counter += 1
-            print('Iteration #{}: {} [Objective: {}, Size: {}]'.format(counter, best_solution, best_objective, size))
+            print('Iteration #{}: {} [Objective: {}, Size: {}, Bound: {}]'.format(counter, best_solution, best_objective, size, bound))
         
         # If the model no longer feasible, log information and output the best solution
         else:
@@ -626,4 +585,4 @@ if __name__ == "__main__":
     # instance = load_instance('instance0001')
     instance = load_validation()
     instance = adjust_instance(instance)
-    solution = tracker_approach(instance, 3000)
+    solution = tracker_approach(instance, 3 * 10 ** 3)
