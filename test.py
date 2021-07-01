@@ -35,7 +35,7 @@ for entry in os.listdir(folder):
                 solution.append(int(line))
 
         # Check performance for 10^4 iterations
-        objective, reward, percentage = mn.check_performance(instance, solution)
+        objective, reward, penalty, percentage = mn.check_performance(instance, solution)
 
         # If solution has some characteristics or has been specificed, print information
         if (objective >= ref_objective and percentage >= ref_percentage) or ref_solution != '' :
