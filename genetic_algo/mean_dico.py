@@ -1,13 +1,17 @@
 import json
 import os
-import statistics
 import time
 
+from baseline_surrogate.demo_surrogate import check_surrogate_solution
 
-class Dico:
+class MeanDico:
   """
   Class to stock & retrieve previously tried path scores.
-  (DEPRECATED)
+  Follows slightly different philosophy than Dico : it stores
+  the mean score from all evaluations done so far + number of 
+  evaluations performed for every key. It means it has structure
+  key -> [mean_score, number_of_eval] instead of the Dico
+  key -> [score, score, score, score, ...]
   """
 
 
@@ -20,7 +24,7 @@ class Dico:
     if dico_filename is None:
       # Create new empty Dico
       self.dico = {
-        "1&":[0]
+        "1&":[0, 0]
       }
     else:
       # Retrieve Dico from filename
@@ -48,7 +52,7 @@ class Dico:
     a_file.close()
 
 
-  def writeEntry(self, individu, pts):
+  def writeEntry(self, individu, mean_pts, n_eval):
     """
     Function that will write the pts of the individu aside its entry if it exists,
     and create a new entry for this individu if it does not.
@@ -59,12 +63,15 @@ class Dico:
 
     if keystr in self.dico:
       # Append the pts to the right key
-      self.dico[keystr].append(pts)
-      return statistics.mean(self.dico[keystr])
+      m, n = self.dico[keystr]
+      weighted_score = float(m * n + mean_pts * n_eval) / (n + n_eval)
+      self.dico[keystr] = [weighted_score, n + n_eval]
+      return weighted_score
     else:
       # Create a new entry
-      self.dico[keystr] = [pts]
-      return pts
+      self.dico[keystr] = [mean_pts, n_eval]
+      return mean_pts
+
 
   def TabToKey(self, individu):
     """
@@ -85,7 +92,7 @@ class Dico:
   def readEntry(self, individu):
     """
     Function that will retrieve the collected pts associated with a given tour so far.
-    Return a list of pts if it exists, and None otherwise.
+    Return a list of [mean_score, number_of_eval] if it exists, and None otherwise.
     """
     # Get the dico key associated with that individu
     keystr = self.TabToKey(individu)
@@ -121,7 +128,7 @@ class Dico:
 
   def selectEntries(self, lower_bound, tabToIndFunc=None):
     """
-    Function that returns the individu-styled entries whose best pts or average pts
+    Function that returns the individu-styled entries whose average pts
     is bigger than the lower_bound. TabToIndFunc is a function passed to change the
     tabs (tour without base departure) into individus.
     """
@@ -130,11 +137,24 @@ class Dico:
     if tabToIndFunc is None:
       return selection
     for keystr, pts_vec in self.dico.items():
-      # Compute the average and max for every dico entry
-      mean_pts = statistics.mean(pts_vec)
-      max_pts = max(pts_vec)
-      if (mean_pts > lower_bound) or (max_pts > lower_bound):
+      if (pts_vec[0] > lower_bound):
         selection.append(tabToIndFunc(self.KeyToTab(keystr)))
+    return selection
+
+
+  def selectCandidates(self, lower_bound, tabToIndFunc=None):
+    """
+    Function that returns the candidate-styled entries whose average pts
+    is bigger than the lower_bound. TabToIndFunc is a function passed to change the
+    tabs (tour without base departure) into candidates.
+    """
+    # The baseline in this case is to not move
+    selection = []
+    if tabToIndFunc is None:
+      return selection
+    for keystr, pts_vec in self.dico.items():
+      if (pts_vec[0] > lower_bound):
+        selection.append([tabToIndFunc(self.KeyToTab(keystr)), pts_vec[0], pts_vec[0]])
     return selection
 
 
@@ -146,63 +166,28 @@ class Dico:
     # The baseline in this case is to not move
     best_mean_key = "1&"
     best_mean_pts = 0
-    best_run_key = "1&"
-    best_run_pts = 0
+    best_mean_n = 0
     for keystr, pts_vec in self.dico.items():
-      # Compute the average for every dico entry and keep the best
-      mean_pts = statistics.mean(pts_vec)
-      max_pts = max(pts_vec)
-      if mean_pts > best_mean_pts:
-        best_mean_pts = mean_pts
+      if pts_vec[0] > best_mean_pts:
+        best_mean_pts = pts_vec[0]
+        best_mean_n = pts_vec[1]
         best_mean_key = keystr
-      if max_pts > best_run_pts:
-        best_run_pts = max_pts
-        best_run_key = keystr
-    return self.KeyToTab(best_mean_key), best_mean_pts, self.KeyToTab(best_run_key), best_run_pts
-
-
-  def getDetailsBestEntry(self):
-      """
-      Function that returns the best entry so far, in the key, value fashion.
-      The value is all values obtained so far.
-      """
-      # The baseline in this case is to not move
-      best_mean_key = "1&"
-      best_mean_pts = 0
-      best_run_key = "1&"
-      best_run_pts = 0
-      for keystr, pts_vec in self.dico.items():
-        # Compute the average for every dico entry and keep the best
-        mean_pts = statistics.mean(pts_vec)
-        max_pts = max(pts_vec)
-        if mean_pts > best_mean_pts:
-          best_mean_pts = mean_pts
-          best_mean_key = keystr
-        if max_pts > best_run_pts:
-          best_run_pts = max_pts
-          best_run_key = keystr
-      return self.KeyToTab(best_mean_key), best_mean_pts, self.dico[best_mean_key], self.KeyToTab(best_run_key), best_run_pts, self.dico[best_run_key]
+    return self.KeyToTab(best_mean_key), best_mean_pts, best_mean_n
 
 
 if __name__ == '__main__':
   """
-  Little helper main function to print own many times the best mean entry and the best max entry
-  where tested.
-  nodes_num : number of nodes in the problem instance stored in the dico.
-  dico_filename : what dico to look at.
+  Little helper main function to print the best entry of a mean_dico.
+  nodes_num : number of nodes in the problem instance stored in the mean_dico.
+  dico_filename : what mean_dico to look at.
   """
   # PARAMETERS
-  dico_filename = os.path.join(os.getcwd(), "20210625-143211-env-55-3119615_pop-40000-625_gen-29.json")
+  dico_filename = os.path.join(os.getcwd(), "20210701-221336-env-55-3119615_pop-320-20_gen-9.json")
   nodes_num = 55
 
-  dico = Dico(nodes_num, dico_filename)
+  dico = MeanDico(nodes_num, dico_filename)
 
-  mean_t, mean_pts, mean_values, best_t, best_pts, best_values = dico.getDetailsBestEntry()
-  print("Best mean tour with " + str(mean_pts) + " pts, tested " + str(len(mean_values)) + " times.")
-  print(*([1] + mean_t), sep = ", ")
-  print("Rewards + penalties scores of this tour : ", mean_values)
-  print("\n ---------------------------------------- \n")
-  print("Best abs. tour with " + str(best_pts) + " pts, tested " + str(len(best_values)) + " times.")
-  print(*([1] + best_t), sep = ", ")
-  print("Rewards + penalties scores of this tour : ", best_values)
+  mean_t, mean_pts, mean_n = dico.getBestEntry()
+  print("Best mean tour with " + str(mean_pts) + " pts, tested " + str(mean_n) + " times.")
+  obj = check_surrogate_solution(([1] + mean_t))
   print("\n ---------------------------------------- \n")

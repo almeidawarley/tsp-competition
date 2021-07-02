@@ -110,3 +110,50 @@ class GeneticOperators:
     for candidate in candidates:
       selected_individus.append(candidate[0])
     return selected_individus
+
+
+  def GPM(self, candidates, target_k, godparents, ordering=True):
+    """
+    God Parents Mixture
+    Selection operator that use a tournament to find a fraction of the population, and
+    use the best existing entries for another fraction (given that they exist).
+
+    Candidates have a tour (list of nodes), a pointage (of the last evaluation, float)
+    and a fitness (mean of all pointages obtained by that tour that have been
+    saved in the dico, float).
+    """
+    def tournament(advers):
+      if len(advers) <= target_k:
+        return
+      else:
+        # Pointage matches against two adjacent adversaries
+        for i in range(1, len(advers)//2 + 1, 1):
+          if advers[i-1][1] < advers[i][1]:
+            advers.pop(i-1)
+          else:
+            advers.pop(i)
+        tournament(advers)
+      return
+    # Select the «best» candidates with tournament
+    tournament(candidates)
+
+    def fitnessOrdering(e):
+      return e[2]
+    if ordering:
+      candidates.sort(key=fitnessOrdering, reverse=True)
+    
+    n_new_parents = int(target_k * 0.8)
+    n_godparents = target_k - n_new_parents
+    if len(godparents) >= n_godparents:
+      godparents.sort(key=fitnessOrdering, reverse=True)
+      godparents = godparents[:n_godparents]
+      candidates = candidates[:n_new_parents] + godparents
+    else:
+      candidates = candidates[: len(candidates) - len(godparents)] + godparents
+    assert len(candidates) == target_k, "The number of candidates does not match"
+
+    # Clear the list from unecessary pts and fitness info
+    selected_individus = []
+    for candidate in candidates:
+      selected_individus.append(candidate[0])
+    return selected_individus

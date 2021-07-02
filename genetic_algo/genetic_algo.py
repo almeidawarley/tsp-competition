@@ -1,4 +1,4 @@
-import dico as DO
+import mean_dico as DO
 import genetic_operators as GO
 
 import numpy as np
@@ -20,7 +20,7 @@ class GeneticAlgo:
   So far, the stopping criterion is a number of loops.
   """
 
-  def __init__(self, nodes_num, prob_instance, population_num=4992, parents_num=158, mutation_proba=0.05, dico_filename=None, warmstart=True, wslb=6.0):
+  def __init__(self, nodes_num, prob_instance, population_num=4992, parents_num=158, mutation_proba=0.05, dico_filename=None, warmstart=True, wslb=6.0, monte_carlo=0):
     """
     Constructor that needs the number of nodes in the problem instance. 
 
@@ -31,9 +31,10 @@ class GeneticAlgo:
     self.N = nodes_num
     self.P = population_num
     self.K = parents_num
+    self.monte_carlo = monte_carlo
     self.prob_instance = prob_instance
     self.mutation_proba = mutation_proba
-    self.dico = DO.Dico(self.N, dico_filename)
+    self.dico = DO.MeanDico(self.N, dico_filename)
     self.operators = GO.GeneticOperators(self.N)
     self.corps, self.queue = self.parseInvalidNodes()
     self.individus = self.initialisation(warmstart, wslb)
@@ -127,9 +128,13 @@ class GeneticAlgo:
     base = [1]
     for individu in self.individus:
       tour = base + individu + self.queue
-      obj_cost, rewards, pen, feas = self.prob_instance.check_solution(tour)
-      fitness = self.dico.writeEntry(individu, rewards + pen)
-      candidates.append([individu, rewards + pen, fitness])
+      # Objective averaged over Monte Carlo samples, to be used for surrogate modelling
+      obj = 0
+      for _ in range(self.monte_carlo):
+        obj_cost, rewards, pen, feas = self.prob_instance.check_solution(tour)
+        obj = obj + (rewards + pen) / self.monte_carlo
+      fitness = self.dico.writeEntry(individu, obj, self.monte_carlo)
+      candidates.append([individu, obj, fitness])
     self.individus = candidates
 
 
@@ -139,8 +144,16 @@ class GeneticAlgo:
     of population.
     Necessitates individus with candidate format (tours, pointages and fitness levels) to work.
     """
+    select_op = "GPM"
     # TODO : Try various selection operators
-    self.individus = self.operators.BTS(self.individus, self.K)
+    # First try : BTS
+    if select_op == "BTS":
+      self.individus = self.operators.BTS(self.individus, self.K)
+
+    # Second try : GPM
+    elif select_op == "GPM":
+      self.individus = self.operators.GPM(
+        self.individus, self.K, self.dico.selectCandidates(6.0, self.tourToIndividu))
 
 
   def reproduction(self):
@@ -194,7 +207,8 @@ if __name__ == '__main__':
   population_num = 40000
   parents_num = 625
   warm_dico_sol_lb = 5.0
-  dico_filename = os.path.join(os.getcwd(), "env-55-3119615_pop-40000-625_gen-49.json")
+  monte_carlo = 10
+  dico_filename = os.path.join(os.getcwd(), "20210701-221336-env-55-3119615_pop-320-20_gen-9.json")
   save_under = time.strftime("%Y%m%d-%H%M%S") + "-env-" + str(nodes_num) + "-" + str(seed) \
     + "_pop-" + str(population_num) + "-" + str(parents_num) + "_gen-"
 
@@ -205,7 +219,8 @@ if __name__ == '__main__':
 
   darwin = GeneticAlgo(
     nodes_num, env, population_num, parents_num,
-    mutation_proba=0.05, dico_filename=dico_filename, warmstart=True, wslb=warm_dico_sol_lb)
+    mutation_proba=0.05, dico_filename=dico_filename,
+    warmstart=True, wslb=warm_dico_sol_lb, monte_carlo=monte_carlo)
   darwin.evaluation()
   time_elapsed1 = time.time() - time1
   print("Environment creation and population initialisation done in : ", time_elapsed1)
@@ -233,9 +248,8 @@ if __name__ == '__main__':
 
     if (i+1) % 10 == 0:
       darwin.save_progress(save_under + str(i) + ".json")
-    best_mean_tour, best_mean_pts, best_tour, best_pts = darwin.dico.getBestEntry()
-    print("Best mean tour so far at gen " + str(i) + " with " + str(best_mean_pts) + " pts.")
+    best_mean_tour, best_mean_pts, n_of_eval = darwin.dico.getBestEntry()
+    print("Best mean tour so far at gen " + str(i) + " with " 
+      + str(best_mean_pts) + " pts, tested " + str(n_of_eval) + " times.")
     print(*([1] + best_mean_tour), sep = ", ")
-    print("Best abs. tour so far at gen " + str(i) + " with " + str(best_pts) + " pts.")
-    print(*([1] + best_tour), sep = ", ")
     print("\n ---------------------------------------- \n")
