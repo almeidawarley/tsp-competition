@@ -39,5 +39,5 @@ for entry in os.listdir(folder):
 
         # If solution has some characteristics or has been specificed, print information
         if (objective >= ref_objective and percentage >= ref_percentage) or ref_solution != '' :
-            print('Solution: {} - Objective: {}, Feasibility: {}%, Reward: {}'
-                .format(path, round(objective, 2), round(100*percentage,0), round(reward, 2)))
+            print('Solution: {} \nObjective: {} \nFeasibility: {}% \nReward: {} \nPenalty: {}'
+                .format(path, round(objective, 6), round(100*percentage, 2), round(reward, 6), round(penalty, 6)))
