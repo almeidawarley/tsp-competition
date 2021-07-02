@@ -66,6 +66,8 @@ class GeneticAlgo:
       # If parameter activated, download first the good individus suggested by Warley.
       # Also, pick the best mean and abs. solutions from the dico.
       individus += self.warmDicoSolutions(wslb) + self.warmWarleySolutions()
+      if len(individus) > self.P:
+        individus = individus[:self.P]
     while len(individus) < self.P:
       ind = self.corps[:]
       random.shuffle(ind)
@@ -203,8 +205,8 @@ if __name__ == '__main__':
   # PARAMETERS
   nodes_num = 55
   seed = 3119615
-  generation_num = 50
-  population_num = 40000
+  generation_num = 10
+  population_num = 20000
   parents_num = 625
   warm_dico_sol_lb = 5.0
   monte_carlo = 10
