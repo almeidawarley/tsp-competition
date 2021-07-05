@@ -3,7 +3,6 @@ import uuid as ui
 import numpy as np
 import cplex as cp
 import time as tm
-import sys
 
 def name_x(i, j):
     """
@@ -309,56 +308,9 @@ def cut_feasible(solver, solution, identifier):
 
     solver.linear_constraints.add(lin_expr = rows, senses = senses, rhs = rhs, names = names)
 
-def cut_impossible(instance, solver):
-    """
-    Cut (certainly) impossible nodes
-    """
-
-    # Create auxiliary vectors
-    rows = []
-    senses = []
-    rhs = []
-    names = []
-
-    # Find impossible nodes
-    impossible = []
-    for i in instance.nodes:
-        if i != 1:
-            solution = [1, i, 1]
-            for j in instance.nodes:
-                if j not in solution:
-                    solution.append(j)
-            objective, _, _, _ = check_performance(instance, solution)
-            if objective <= 0:
-                impossible.append(i)
-
-    # Create unreachable cut
-    senses.append('L')
-    names.append('imp')
-    rhs.append(0)
-    coefficients = []
-    variables = []
-    for i in impossible:
-        for k in instance.nodes:
-            variable = name_x(i, k)
-            if variable not in variables:
-                variables.append(variable)
-                coefficients.append(1)
-            variable = name_x(k, i)
-            if variable not in variables:
-                variables.append(variable)
-                coefficients.append(1)
-    rows.append([variables,coefficients])
-
-    solver.linear_constraints.add(lin_expr = rows, senses = senses, rhs = rhs, names = names)
-
-    print('There are {} impossible nodes: {}'.format(len(impossible), impossible))
-
-    return impossible
-
 def cut_unreachable(instance, solver):
     """
-    Cut (likely) unreachable arcs
+    Cut (likely) unreachable nodes and arcs
     """
 
     # Create auxiliary vectors
@@ -367,7 +319,8 @@ def cut_unreachable(instance, solver):
     rhs = []
     names = []
 
-    unreachable = []
+    counter = 0
+
     # Create unreachable cut
     senses.append('L')
     names.append('unr')
@@ -376,24 +329,35 @@ def cut_unreachable(instance, solver):
     variables = []
     for i in instance.nodes:
         for j in instance.nodes:
-            # If leaving the earliest from node i cannot reach node j in time, cut arc (i, j)
-            if instance.opening[i-1] + instance.times[i-1][j-1] > instance.closing[j-1]:
-                variables.append(name_x(i, j))
-                coefficients.append(1)
-                unreachable.append([i, j])
+            # True if it is not possible to reach node i straight from the depot
+            first = instance.times[0][i-1] > instance.closing[i-1]
+            # True if it is not possible to reach the depot straight from node i
+            second = instance.opening[i-1] + instance.times[i-1][0] > instance.maximum
+            # True if leaving the earliest from node i cannot reach node j in time
+            third = instance.opening[i-1] + instance.times[i-1][j-1] > instance.closing[j-1]
+            # If the node has an unreachable property, cut it
+            # If the arc has an unreachable property, cut it
+            if first or second or third:
+                counter += (first or second)
+                variable = name_x(i, j)
+                if variable not in variables:
+                    variables.append(variable)
+                    coefficients.append(1)
     rows.append([variables,coefficients])
 
     solver.linear_constraints.add(lin_expr = rows, senses = senses, rhs = rhs, names = names)
 
-    # print('There are {} unreachable arcs: {}'.format(len(unreachable), unreachable))
-
-    return unreachable
+    # Number of unreachable nodes
+    counter = counter / instance.n_nodes
+    
+    return counter
 
 def relax_unreachable(instance, solver, step):
     """
     Relax unreachable cut according to a step
     """
 
+    print('Relaxing unreachable cut...')
     rhs = solver.linear_constraints.get_rhs('unr')
     solver.linear_constraints.set_rhs('unr', rhs + step)
 
@@ -408,7 +372,7 @@ def build_model(instance):
 
     # Set solver parameters
     solver.objective.set_sense(solver.objective.sense.maximize)
-    # solver.parameters.mip.tolerances.mipgap.set(0.1)
+    solver.parameters.mip.tolerances.mipgap.set(0.1)
     solver.set_results_stream(None)
     solver.set_log_stream(None)
 
@@ -421,12 +385,10 @@ def build_model(instance):
     create_end_constraint(instance, solver)
     create_order_constraint(instance, solver)
     
-    # Create impossible cuts
-    impossible = cut_impossible(instance, solver)
     # Create unreachable cuts
     unreachable = cut_unreachable(instance, solver)
 
-    return solver, len(impossible)
+    return solver, unreachable
 
 def run_model(instance, solver, size, path = 'dummy.lp'):
     """
@@ -436,15 +398,16 @@ def run_model(instance, solver, size, path = 'dummy.lp'):
     # Add tour size constraint
     create_size_constraint(instance, solver, size)
 
+    # Run the solver
     try:
-        # Run the solver
         solver.solve()
-        # Retrieve the solution
-        objective = solver.solution.get_objective_value()
-        solution = {variable: value for (variable, value) in 
-            zip(solver.variables.get_names(), solver.solution.get_values())}
     except:
-        return -1 * np.inf, {}    
+        return {}
+
+    # Retrieve the solution
+    objective = solver.solution.get_objective_value()
+    solution = {variable: value for (variable, value) in 
+        zip(solver.variables.get_names(), solver.solution.get_values())}
 
     # Export the model
     solver.write(path)
@@ -556,32 +519,16 @@ def adapt_coefficients(instance, solver, history, solution, penalty):
     
     solver.objective.set_linear(updates)
 
-def calculate_bound(instance, solver, size):
+def calculate_bound(instance, size):
     """
     Calculate bound for a tour size
     """
 
-    variables = solver.variables.get_names()
-    coefficients = solver.objective.get_linear()
-
-    # Restore coefficients to standard values
-    updates = []
-    for i in instance.nodes:
-        for j in instance.nodes:
-            updates.append((name_x(i,j), retrieve_coefficient(instance, i, j)))
-
-    solver.objective.set_linear(updates)
-
+    # Create a temporary model
+    solver, unreachable = build_model(instance)
     # Retrieve a bound value
     bound, _ = run_model(instance, solver, size, 'bound.lp')
 
-    # Restore coefficients to updated values
-    updates = []
-    for index, _ in enumerate(variables):
-        updates.append((variables[index], coefficients[index]))
-
-    solver.objective.set_linear(updates)
-    
     bound = round(bound, 10)
 
     return bound
@@ -605,27 +552,27 @@ def retrieve_arcs(solution):
     return arcs
 
 
-def tracker_approach(instance, iterations = 10 ** 3, threshold = 0.8, tolerance = 0.05, factor = 1):
+def tracker_approach(instance, iterations = 10 ** 3, mode = 1, threshold = 0.8, tolerance = 0.05):
     """
     Run tracker approach
     """
 
-    assert factor <= 1 and factor >= -1
+    assert mode <= 1 and mode >= -1
 
     # Global variables
     best_solution = []
     best_objective = -1 * np.inf
 
     # Estimate travel times
-    if factor < 0:
+    if mode < 0:
         weights = np.random.rand(instance.n_nodes, instance.n_nodes)
     else:
-        weights = factor
+        weights = mode
         
     instance.times = weights * instance.adj
 
     # Build the model
-    solver, blocked = build_model(instance)
+    solver, unreachable = build_model(instance)
 
     # Historical data    
     history = {}
@@ -643,19 +590,16 @@ def tracker_approach(instance, iterations = 10 ** 3, threshold = 0.8, tolerance 
     # Maximum size of the tour
     maximum = instance.n_nodes + 1
     # Frontier size of the tour
-    frontier = maximum - blocked
-
-    # Calculate initial bound
-    bound = calculate_bound(instance, solver, size)
+    frontier = maximum - unreachable
 
     # Save start time
     start = tm.time()
 
-    # Iterate until (a) maximum number of iterations, (b) the gap has been closed, (c) the model is no longer feasible
-    while counter < iterations and best_objective < bound and feasible:
+    # Iterate until (a) maximum number of iterations, (b) maximum size of the tour, (c) the model is no longer feasible
+    while counter < iterations and feasible:
 
         # Obtain solution from the model
-        approx, solution = run_model(instance, solver, size, 'model.lp')
+        _, solution = run_model(instance, solver, size, 'model.lp')
         #print('Raw solution: ', solution)
 
         feasible = len(solution) != 0
@@ -666,6 +610,8 @@ def tracker_approach(instance, iterations = 10 ** 3, threshold = 0.8, tolerance 
             # Format solution in an understandable manner
             solution = format_solution(instance, solution)
             # print('Formatted solution: ', solution)
+            # Calculate bound for the current size
+            bound = calculate_bound(instance, size)
             
             # Check solution performance
             objective, reward, penalty, percentage = check_performance(instance, solution)
@@ -677,31 +623,32 @@ def tracker_approach(instance, iterations = 10 ** 3, threshold = 0.8, tolerance 
             
             # If the solution is infeasible most of the time, cut infeasible solution
             if percentage < threshold:
-            # if objective < best_objective / 2:
                 # print('Solution infeasible')
                 cut_infeasible(solver, solution, counter)
             # Otherwise, cut feasible solution because it has been visited already
             else:
                 # print('Solution feasible')
                 cut_feasible(solver, solution, counter)
+
+            '''
+            # Relax unreachable cut according to a step
+            if size > frontier:
+                relax_unreachable(instance, solver, 1)
+            '''
             
             # Adapt coefficients based on historical data
             adapt_coefficients(instance, solver, history, solution, penalty)
 
             # Calculate gap based on the current solution
             gap = (bound - best_objective) / bound
-            if gap < tolerance and size < frontier:
+            if gap < tolerance and size < maximum:
                 size += 1
-                # Calculate current bound
-                bound = calculate_bound(instance, solver, size)
             else:
                 size += 0
 
             # Print information about the current iteration
             counter += 1
-            print('Candidate at iteration #{}: {} [Objective: {}, Size: {}, Bound: {}]'
-                .format(counter, solution, objective, size, bound))
-            print('Superior at iteration #{}: {} [Objective: {}, Size: {}, Bound: {}]'
+            print('Iteration #{}: {} [Objective: {}, Size: {}, Bound: {}]'
                 .format(counter, best_solution, best_objective, size, bound))
         
         # End algorithm if the model is no longer feasible
@@ -768,15 +715,6 @@ def load_validation():
 
     return instance
 
-def load_competition():
-    """
-    Load competition instance
-    """
-
-    instance = env.Env(65, seed = 6537855)
-    
-    return instance
-
 def adjust_instance(instance):
     """
     Adjust instance
@@ -791,10 +729,7 @@ def adjust_instance(instance):
     return instance
 
 if __name__ == "__main__":
-
-    if len(sys.argv) > 1:
-        instance = load_instance(sys.argv[1])
-    else:
-        instance = load_validation()
+    # instance = load_instance('instance0001')
+    instance = load_validation()
     instance = adjust_instance(instance)
-    solution = tracker_approach(instance, 10 ** 3, 0.8, 0.05)
+    solution = tracker_approach(instance, 10 ** 3, 1, 0.9)
