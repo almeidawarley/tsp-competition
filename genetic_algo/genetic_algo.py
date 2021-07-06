@@ -45,13 +45,18 @@ class GeneticAlgo:
     Find the nodes that are unattainable during the tour and stock them apart.
     Returns the list of attainable nodes «corps» and the list of unattainable nodes «queue»
     """
-    corps = []
-    queue = []
-    for node in self.prob_instance.x:
-      if node[3] >= node[6]:
-        queue.append(node[0])
-      else:
-        corps.append(node[0])
+    # corps = []
+    # queue = []
+    # for node in self.prob_instance.x:
+    #   if node[3] >= node[6]:
+    #     queue.append(node[0])
+    #   else:
+    #     corps.append(node[0])
+    # return corps, queue
+
+    # Warley made prospection so we know nodes that are not helping
+    corps = [1, 2, 4, 5, 6, 7, 9, 11, 13, 16, 19, 22, 23, 24, 29, 30, 32, 33, 35, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 55, 57, 60, 62, 63, 64, 65]
+    queue = [3, 8, 10, 12, 14, 15, 17, 18, 20, 21, 25, 26, 27, 28, 31, 34, 36, 37, 38, 39, 50, 51, 52, 53, 54, 56, 58, 59, 61]
     return corps, queue
 
 
@@ -73,6 +78,7 @@ class GeneticAlgo:
       random.shuffle(ind)
       if ind[0] == 1:
         ind = self.operators.Permutation1(ind)
+      assert len(ind) == len(self.corps), "Individu does not have the right size :" + str(len(ind))
       individus.append(ind)
     return individus
 
@@ -100,6 +106,7 @@ class GeneticAlgo:
       if entry.path.endswith(".out") and entry.is_file():
         a_file = open(entry, "r")
         lines = a_file.read().splitlines()
+        assert len(lines) == self.N +1, "Bad solution in Warley folder named " + entry.name
         warm.append(self.tourToIndividu(lines, True))
     return warm
 
@@ -117,6 +124,7 @@ class GeneticAlgo:
         node = int(node)
       if not node in self.queue:
         ind.append(node)
+    assert len(ind) == len(self.corps), "tourToIndividu spotted bad individu of isString == " + str(isString) + " " + str(len(ind))
     return ind
 
 
@@ -203,14 +211,14 @@ if __name__ == '__main__':
   generation_num : number of population generation, used as stopping criterion.
   """
   # PARAMETERS
-  nodes_num = 55
-  seed = 3119615
-  generation_num = 10
-  population_num = 20000
-  parents_num = 625
-  warm_dico_sol_lb = 5.0
-  monte_carlo = 10
-  dico_filename = os.path.join(os.getcwd(), "20210701-221336-env-55-3119615_pop-320-20_gen-9.json")
+  nodes_num = 65
+  seed=6537855
+  generation_num = 3
+  population_num = 25600
+  parents_num = 200
+  warm_dico_sol_lb = 8.0
+  monte_carlo = 100
+  dico_filename = None #os.path.join(os.getcwd(), "20210702-112916-env-55-3119615_pop-6400-200_gen-9.json")
   save_under = time.strftime("%Y%m%d-%H%M%S") + "-env-" + str(nodes_num) + "-" + str(seed) \
     + "_pop-" + str(population_num) + "-" + str(parents_num) + "_gen-"
 
@@ -248,7 +256,7 @@ if __name__ == '__main__':
     time_eva = time.time()
     print("End of evaluation   " + str(i), time_eva - time_mut)
 
-    if (i+1) % 10 == 0:
+    if (i+1) % 10 == 0 or i == generation_num:
       darwin.save_progress(save_under + str(i) + ".json")
     best_mean_tour, best_mean_pts, n_of_eval = darwin.dico.getBestEntry()
     print("Best mean tour so far at gen " + str(i) + " with " 
