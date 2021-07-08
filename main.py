@@ -216,7 +216,7 @@ def create_order_constraint(instance, solver):
                 names.append('tmp_' + str(i) + '_' + str(j))
                 rhs.append(1 - M)
                 coefficients = []
-                variables = []                
+                variables = []
                 coefficients.append(1)
                 variables.append(name_t(j))
                 coefficients.append(-1)
@@ -328,7 +328,7 @@ def cut_impossible(instance, solver):
             for j in instance.nodes:
                 if j not in solution:
                     solution.append(j)
-            objective, _, _, _ = check_performance(instance, solution)
+            objective, _, _, _ = check_performance(instance, solution)  
             if objective <= 0:
                 impossible.append(i)
 
@@ -457,7 +457,7 @@ def run_model(instance, solver, size, path = 'dummy.lp'):
     return objective, solution
 
 
-def check_performance(instance, solution, iterations = 10 ** 4, flag = False):
+def check_performance(instance, solution, simulations = 10 ** 4, flag = False):
     """
     Check the performance of a solution
     """
@@ -469,7 +469,7 @@ def check_performance(instance, solution, iterations = 10 ** 4, flag = False):
     percentage = 0
 
     counter = 0
-    while counter < iterations:
+    while counter < simulations:
 
         # Call black-box simulator
         time, reward, penalty, feasible = instance.check_solution(solution)
@@ -482,16 +482,16 @@ def check_performance(instance, solution, iterations = 10 ** 4, flag = False):
 
         counter += 1
 
-    avg_time /= iterations
-    avg_reward /= iterations
-    avg_penalty /= iterations
-    percentage /= iterations
+    avg_time /= simulations
+    avg_reward /= simulations
+    avg_penalty /= simulations
+    percentage /= simulations
     avg_objective = avg_reward + avg_penalty
 
     # Print relevant information
     if flag:
         print('Solution: ', solution)
-        print('Performance for', iterations, 'iterations')
+        print('Simulations: ', simulations)
         print('Objective: ', avg_objective)
         print('Time: ', avg_time)
         print('Reward: ', avg_reward)
@@ -605,7 +605,7 @@ def retrieve_arcs(solution):
     return arcs
 
 
-def tracker_approach(instance, iterations = 10 ** 3, threshold = 0.8, tolerance = 0.05, factor = 1):
+def tracker_approach(instance, iterations = 10 ** 3, threshold = 0.8, tolerance = 0.05, simulations = 100, factor = 1):
     """
     Run tracker approach
     """
@@ -668,7 +668,7 @@ def tracker_approach(instance, iterations = 10 ** 3, threshold = 0.8, tolerance 
             # print('Formatted solution: ', solution)
             
             # Check solution performance
-            objective, reward, penalty, percentage = check_performance(instance, solution)
+            objective, reward, penalty, percentage = check_performance(instance, solution, simulations)
             
             # Store current solution if it is the best one yet
             if objective >= best_objective:
@@ -699,9 +699,9 @@ def tracker_approach(instance, iterations = 10 ** 3, threshold = 0.8, tolerance 
 
             # Print information about the current iteration
             counter += 1
-            print('Candidate at iteration #{}: {} [Objective: {}, Size: {}, Bound: {}]'
+            print('Candidate solution at iteration #{}: {} [Objective: {}, Size: {}, Bound: {}]'
                 .format(counter, solution, objective, size, bound))
-            print('Superior at iteration #{}: {} [Objective: {}, Size: {}, Bound: {}]'
+            print('Superior solution at iteration #{}: {} [Objective: {}, Size: {}, Bound: {}]'
                 .format(counter, best_solution, best_objective, size, bound))
         
         # End algorithm if the model is no longer feasible
@@ -716,8 +716,9 @@ def tracker_approach(instance, iterations = 10 ** 3, threshold = 0.8, tolerance 
 
     # Performance summary
     print('> Arguments:')
-    print('| # iterations: {}'.format(mode))
-    print('| Mode: {}'.format(mode))
+    print('| Iterations: {}'.format(iterations))
+    print('| Simulations: {}'.format(simulations))
+    print('| Factor: {}'.format(factor))
     print('| Threshold: {}'.format(threshold))
     print('| Tolerance: {}'.format(tolerance))
     print('> Parameters:')
@@ -795,6 +796,12 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         instance = load_instance(sys.argv[1])
     else:
-        instance = load_validation()
+        # instance = load_validation()
+        instance = load_competition()
     instance = adjust_instance(instance)
-    solution = tracker_approach(instance, 10 ** 3, 0.8, 0.05)
+    solution = tracker_approach(instance, 
+        iterations = 10 ** 4, 
+        threshold = 0.6, 
+        tolerance = 0.2, # 0.05 
+        simulations = 10 ** 2, #10 ** 3, 
+        factor = 1)
