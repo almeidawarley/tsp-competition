@@ -1,5 +1,6 @@
 import json
 import os
+import random
 import time
 
 from baseline_surrogate.demo_surrogate import check_surrogate_solution
@@ -175,6 +176,23 @@ class MeanDico:
     return self.KeyToTab(best_mean_key), best_mean_pts, best_mean_n
 
 
+def writeGoodSolToFile(list, filename) :
+  """
+  Write a list to a file (named filename) in the .out format
+  """
+  a_file = open(filename, "w")
+  for node in list:
+    a_file.write(str(node) + "\n")
+  a_file.close()
+
+
+def addBase(list) :
+  """
+  Add the missing base node to create the tour
+  """
+  return [1] + list
+
+
 if __name__ == '__main__':
   """
   Little helper main function to print the best entry of a mean_dico.
@@ -182,12 +200,31 @@ if __name__ == '__main__':
   dico_filename : what mean_dico to look at.
   """
   # PARAMETERS
-  dico_filename = os.path.join(os.getcwd(), "20210701-221336-env-55-3119615_pop-320-20_gen-9.json")
-  nodes_num = 55
+  dico_filename = os.path.join(os.getcwd(), "20210707-125553-env-65-6537855_pop-25600-200_gen-4.json")
+  nodes_num = 65
 
   dico = MeanDico(nodes_num, dico_filename)
 
-  mean_t, mean_pts, mean_n = dico.getBestEntry()
-  print("Best mean tour with " + str(mean_pts) + " pts, tested " + str(mean_n) + " times.")
-  obj = check_surrogate_solution(([1] + mean_t))
-  print("\n ---------------------------------------- \n")
+  # This block of code returns only one good solution
+  # mean_t, mean_pts, mean_n = dico.getBestEntry()
+  # print("Best mean tour with " + str(mean_pts) + " pts, tested " + str(mean_n) + " times.")
+  #obj = check_surrogate_solution(([1] + mean_t))
+  # print("\n ---------------------------------------- \n")
+
+  # We want to find all solutions above a certain lower bound
+  mydir = "justi"
+  lb = 11.3
+  directory = os.path.join(os.getcwd(), mydir)
+  timestr = os.path.join(os.getcwd(), mydir, time.strftime("%Y%m%d-%H%M%S") + ".txt")
+  o_file = open(timestr, "w")
+
+  selection = dico.selectEntries(lb, addBase)
+  for good_sol in selection:
+    # Save the solution in a file, to be able to retrieve it easily
+    filestr = time.strftime("%Y%m%d-%H%M%S") + str(random.randint(100, 999)) + ".out"
+    writeGoodSolToFile(good_sol, os.path.join(os.getcwd(), mydir, filestr))
+
+    # Also check the tour for 10k times to get a good idea of actual score
+    obj = check_surrogate_solution(good_sol)
+    o_file.write(filestr + ", " + str(obj) + "\n")
+  o_file.close()
