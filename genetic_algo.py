@@ -18,15 +18,25 @@ class GeneticAlgo:
   the evaluation step, on and on, until the stopping criterion is reached.
 
   So far, the stopping criterion is a number of loops.
+
+  The result of this algorithm is stored in a json dico file that contains a dictionary with mean_dico format.
   """
 
   def __init__(self, nodes_num, prob_instance, population_num=4992, parents_num=158, mutation_proba=0.05, dico_filename=None, warmstart=True, wslb=6.0, monte_carlo=0):
     """
-    Constructor that needs the number of nodes in the problem instance. 
+    Constructor that needs the number of nodes in the problem instance and the problem instance to use.
 
-    Optional parameters are the population_num to reach with the reproduction step, the parents_num
-    to be left after the selection step, and the dico_filename to save under a fancier name than the
-    default datetime.
+    Optional parameters :
+      population_num (int) :   Number of individus to reach with the reproduction step.
+      parents_num (int) :      Number of individus to be left after the selection step.
+      mutation_proba (float) : Percentage, probability that mutation occurs to an individu during the mutation step.
+      dico_filename (str) :    A filename to save the dico under a fancier name than the default datetime.
+                               Is also used (if it exist) as a source of warm individus.
+      warmstart (bool) :       If warmstart is true, will use content of preexisting dico_filename to grab a few
+                               individus for the warm start. It will also use any solution contained in a folder called « warley ».
+      wslb (float) :           Warm start lower bound : will grab from dico_filename solutions that are above wslb.
+      monte_carlo (int) :      Number of times to consecutively evaluate an individu with check_solution before
+                               storing in the dico.
     """
     self.N = nodes_num
     self.P = population_num
@@ -64,6 +74,8 @@ class GeneticAlgo:
     """
     Initialise the population until there are self.P individus.
     Return a list of individus (an individu is a list comprising a permutation of the corps nodes).
+    The corps nodes are forming a complete route when put in between the base [1] and the queue
+    (unattainable nodes).
     """
     # TODO : Initialise the population with something fancier than random individus.
     individus = []
@@ -85,7 +97,8 @@ class GeneticAlgo:
 
   def warmDicoSolutions(self, wslb=6.0):
     """
-    Reads from the dico the best solutions found both in the abs. case and in the mean case.
+    Reads from the dico the best solutions found in the mean case (they have been evaluated
+    at least « monte_carlo » times).
     Those solutions have to be better than a certain lower bound wslb.
     Return the individus list.
     """
@@ -96,8 +109,8 @@ class GeneticAlgo:
   def warmWarleySolutions(self):
     """
     Reads from a folder named warley the best solutions found by Warley and adds
-    them to an array in the individu format. That means the first one, the queue nodes
-    and the nodes after the second one must be removed.
+    them to an array in the individu format. That means the base [1], the queue nodes
+    and the nodes after the return to base [1] must be removed.
     Return the individus list.
     """
     warm = []
@@ -206,9 +219,16 @@ class GeneticAlgo:
 if __name__ == '__main__':
   """
   Params for the algorithm
-  nodes_num : number of nodes in the problem instance
-  seed : random seed
-  generation_num : number of population generation, used as stopping criterion.
+  nodes_num (int)          : number of nodes in the problem instance
+  seed (int)               : random seed for the problem instance
+  generation_num (int)     : number of population generations, used as stopping criterion (number of loops).
+  population_num (int)     : number of individus in population (to be attained after the reproduction step).
+  parents_num (int)        : number of parents in population (survivors after the selection step).
+  warm_dico_sol_lb (float) : minimal score tolerated in order to consider a solution from the dico in the warmstart.
+  monte_carlo (int)        : number of consecutive evaluations of a solution performed with check_solution during evaluation step.
+  dico_filename (str)      : name of preexisting dico (put None if does not want to use one) to perform warmstart.
+  save_under (str)         : name of files to save the next generations' dicos.
+  mutation_proba (float)   : Percentage, probability that mutation occurs to an individu during the mutation step.
   """
   # PARAMETERS
   nodes_num = 65
@@ -216,9 +236,9 @@ if __name__ == '__main__':
   generation_num = 3
   population_num = 25600
   parents_num = 200
-  warm_dico_sol_lb = 8.0
+  warm_dico_sol_lb = 11.3
   monte_carlo = 100
-  dico_filename = None #os.path.join(os.getcwd(), "20210702-112916-env-55-3119615_pop-6400-200_gen-9.json")
+  dico_filename = os.path.join(os.getcwd(), "20210707-125553-env-65-6537855_pop-25600-200_gen-4.json")
   save_under = time.strftime("%Y%m%d-%H%M%S") + "-env-" + str(nodes_num) + "-" + str(seed) \
     + "_pop-" + str(population_num) + "-" + str(parents_num) + "_gen-"
 
@@ -256,8 +276,7 @@ if __name__ == '__main__':
     time_eva = time.time()
     print("End of evaluation   " + str(i), time_eva - time_mut)
 
-    if (i+1) % 10 == 0 or i == generation_num:
-      darwin.save_progress(save_under + str(i) + ".json")
+    darwin.save_progress(save_under + str(i) + ".json")
     best_mean_tour, best_mean_pts, n_of_eval = darwin.dico.getBestEntry()
     print("Best mean tour so far at gen " + str(i) + " with " 
       + str(best_mean_pts) + " pts, tested " + str(n_of_eval) + " times.")

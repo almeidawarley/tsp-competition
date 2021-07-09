@@ -29,6 +29,7 @@ class GeneticOperators:
     """
     Non-Wrapping Ordered Crossover
     Crossing operator that creates 2 children from parent1 and parent2.
+    Taken from this article : DOI:10.1145/1143997.1144177
     """
     # TODO : Maybe control the span of the reserved section?
     a, b = self.chooseAB(0, len(parent1))
@@ -85,6 +86,8 @@ class GeneticOperators:
     Two versions of BTS : the one with ordering supposedly gives a chance to
     individuals that perform especially good on one run, despite being less good on average.
     It helps with the variety of the population. The other is simply N/k batches of tournaments.
+
+    Inspired from this article : DOI:10.1145/3321707.3321793
     """
     def fitnessOrdering(e):
       return e[2]
@@ -121,6 +124,8 @@ class GeneticOperators:
     Candidates have a tour (list of nodes), a pointage (of the last evaluation, float)
     and a fitness (mean of all pointages obtained by that tour that have been
     saved in the dico, float).
+
+    Homemade procedure.
     """
     def tournament(advers):
       if len(advers) <= target_k:

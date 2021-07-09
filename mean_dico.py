@@ -8,11 +8,9 @@ from baseline_surrogate.demo_surrogate import check_surrogate_solution
 class MeanDico:
   """
   Class to stock & retrieve previously tried path scores.
-  Follows slightly different philosophy than Dico : it stores
-  the mean score from all evaluations done so far + number of 
-  evaluations performed for every key. It means it has structure
-  key -> [mean_score, number_of_eval] instead of the Dico
-  key -> [score, score, score, score, ...]
+  Follows this philosophy : it stores the mean score from all
+  evaluations done so far + number of evaluations performed for every key.
+  It means it has structure key -> [mean_score, number_of_eval].
   """
 
 
