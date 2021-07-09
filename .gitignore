@@ -5,3 +5,6 @@ local
 local/*.py
 local/*.zip
 
+bound.lp
+model.lp
+dummy.lp

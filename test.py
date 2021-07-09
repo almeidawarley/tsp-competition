@@ -5,6 +5,8 @@ import sys
 
 # Load validation instance
 instance = mn.load_validation()
+# Load competition instance
+instance = mn.load_competition()
 instance = mn.adjust_instance(instance)
 
 # Set important parameters
@@ -35,7 +37,7 @@ for entry in os.listdir(folder):
                 solution.append(int(line))
 
         # Check performance for 10^4 iterations
-        objective, reward, penalty, percentage = mn.check_performance(instance, solution)
+        objective, reward, penalty, percentage = mn.check_performance(instance, solution, 10 ** 5)
 
         # If solution has some characteristics or has been specificed, print information
         if (objective >= ref_objective and percentage >= ref_percentage) or ref_solution != '' :
