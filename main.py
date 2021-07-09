@@ -213,7 +213,7 @@ def create_order_constraint(instance, solver):
             # Ignore return to depot
             if i != j and j != 1:
                 senses.append('G')
-                names.append('tmp_' + str(i) + '_' + str(j))
+                names.append('ord_' + str(i) + '_' + str(j))
                 rhs.append(1 - M)
                 coefficients = []
                 variables = []
@@ -409,6 +409,7 @@ def build_model(instance):
     # Set solver parameters
     solver.objective.set_sense(solver.objective.sense.maximize)
     # solver.parameters.mip.tolerances.mipgap.set(0.1)
+    # solver.parameters.threads.set(1)
     solver.set_results_stream(None)
     solver.set_log_stream(None)
 
@@ -699,6 +700,8 @@ def tracker_approach(instance, iterations = 10 ** 3, threshold = 0.8, tolerance 
 
             # Print information about the current iteration
             counter += 1
+            print('Approximate objective value for candidate solution at iteration #{}: {}'
+                .format(counter, approx))
             print('Candidate solution at iteration #{}: {} [Objective: {}, Size: {}, Bound: {}]'
                 .format(counter, solution, objective, size, bound))
             print('Superior solution at iteration #{}: {} [Objective: {}, Size: {}, Bound: {}]'
@@ -718,9 +721,9 @@ def tracker_approach(instance, iterations = 10 ** 3, threshold = 0.8, tolerance 
     print('> Arguments:')
     print('| Iterations: {}'.format(iterations))
     print('| Simulations: {}'.format(simulations))
-    print('| Factor: {}'.format(factor))
     print('| Threshold: {}'.format(threshold))
     print('| Tolerance: {}'.format(tolerance))
+    print('| Factor: {}'.format(factor))
     print('> Parameters:')
     print('| Feasible: {}'.format(feasible))
     print('| Counter: {}'.format(counter))
@@ -800,8 +803,8 @@ if __name__ == "__main__":
         instance = load_competition()
     instance = adjust_instance(instance)
     solution = tracker_approach(instance, 
-        iterations = 10 ** 4, 
-        threshold = 0.6, 
-        tolerance = 0.2, # 0.05 
+        iterations = 10 ** 3, 
+        threshold = 0.8, 
+        tolerance = 0.1, # 0.05 
         simulations = 10 ** 2, #10 ** 3, 
         factor = 1)
