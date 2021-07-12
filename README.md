@@ -1,34 +1,6 @@
 # AI for TSP Competition
 # Repository of the team Margaridinhas for the surrogate track (track 1)
 
-## Graphical analysis of solutions:
-Open [graphical_analysis/analysis.py](https://github.com/almeidawarley/tsp_competition/blob/master/graphical_analysis/analysis.py) and choose the desired instance and solution in the main() (by changing the variables *instance_number*, *use_validation_or_test*, *use_test*, and *sol*). Then run the file. An image analysis.png will be created.
-
-## Dynamical programming approach:
-Open [dynamic_prog/dynamic.py](https://github.com/almeidawarley/tsp_competition/blob/master/dynamic_prog/dynamic.py) and choose the desired instance using variables *instance_number*, *use_validation_or_test* and *use_test*. Then, set variable *precomputed* to *False* to compute matrices E and TT for the first time for that particular instance, and that will be stored in subfolder *dynamic_prog/store_E_and_TT*. Once those tables are stored, it will be possible to run again the same method on the same instance with *precomputed* to *True* to avoid recomputing E and TT. Finally, the last parameter is the number of steps to look ahead in the algorithm, encoded in the variable *E_dimensions*. The details of this algorithm is detailed in the appendix of the [documentation](https://github.com/almeidawarley/tsp_competition/blob/master/AI4TSP_competition_track_1_Margaridinhas.pdf). The solutions will be stored in the subfolder *dynamic_prog/dyn_solutions*.
-
-## Tracker approach
-Open [tracker.py](https://github.com/almeidawarley/tsp_competition/blob/master/tracker.py) and choose the desired value for the parameters of the tracker approach. There are four parameters: *iterations*, which determines the maximum number of iterations of the tracker approach; *simulations*, which determines the number of simulations per iteration; *feasibility_threshold*, which determines the feasibility threshold among a *simulations* number of simulations; and *gap_threshold*, which determines the gap threshold taking into consideration the upper bound at a certain iteration. The tracker approach loads by default the competition instance, i.e., the instance used in the test phase of the competition. However, it is possible to run it for other instances by changing the code accordingly. The tracker approach exports solutions to the [solutions](https://github.com/almeidawarley/tsp_competition/blob/master/solutions) folder. The details of this algorithm can be found in section 2 of the [documentation](https://github.com/almeidawarley/tsp_competition/blob/master/AI4TSP_competition_track_1_Margaridinhas.pdf).
-
-## Genetic approach
-Open [genetic_algo.py](https://github.com/almeidawarley/tsp_competition/blob/master/genetic_algo.py) and choose the desired value for the parameters of the genetic approach. 
-
-```
-Params for the algorithm
-  nodes_num (int)          : number of nodes in the problem instance
-  seed (int)               : random seed for the problem instance
-  generation_num (int)     : number of population generations, used as stopping criterion (number of loops).
-  population_num (int)     : number of individus in population (to be attained after the reproduction step).
-  parents_num (int)        : number of parents in population (survivors after the selection step).
-  warm_dico_sol_lb (float) : minimal score tolerated in order to consider a solution from the dico in the warmstart.
-  monte_carlo (int)        : number of consecutive evaluations of a solution performed with check_solution during evaluation step.
-  dico_filename (str)      : name of preexisting dico (put None if does not want to use one) to perform warmstart.
-  save_under (str)         : name of files to save the next generations' dicos.
-  mutation_proba (float)   : Percentage, probability that mutation occurs to an individu during the mutation step.
-```
-
- A sample of solutions found by the genetic approach can be found in the [genetic_algo](https://github.com/almeidawarley/tsp_competition/blob/master/genetic_algo/) folder, together with the final dictionary used for the test phase. The genetic algorithm uses the [genetic_operators.py](https://github.com/almeidawarley/tsp_competition/blob/master/genetic_operators.py) and [mean_dico.py](https://github.com/almeidawarley/tsp_competition/blob/master/mean_dico.py) files. The former contains a class implementing all the genetic operators for the selection, reproduction and mutation steps, while the latter contains the utility functions necessary to save the solution check results. The latter also contains a very useful main function to find all solutions above a certain lower bound in the dictionary.
-
 ## Generation of the solutions with the highest score
 The generation of the set of solutions with the highest score was done in two steps. First, the tracker approach has been called with a few different parameters to generate different good solutions for the test instance. More specifically, the good solutions listed below, which are available in the [solutions](https://github.com/almeidawarley/tsp_competition/blob/master/solutions) folder, have been generated through the tracker approach with the following parameters.
 
@@ -73,3 +45,30 @@ Then, we inputed the following parameters in the main function of the `genetic_a
 
 For subsequent runs, we initialised the dictionary parameter in order to take advantage of the previous runs : `dico_filename = os.path.join(os.getcwd(), "20210707-125553-env-65-6537855_pop-25600-200_gen-4.json")`.
 
+## Tracker approach
+Open [tracker.py](https://github.com/almeidawarley/tsp_competition/blob/master/tracker.py) and choose the desired value for the parameters of the tracker approach. There are four parameters: *iterations*, which determines the maximum number of iterations of the tracker approach; *simulations*, which determines the number of simulations per iteration; *feasibility_threshold*, which determines the feasibility threshold among a *simulations* number of simulations; and *gap_threshold*, which determines the gap threshold taking into consideration the upper bound at a certain iteration. The tracker approach loads by default the competition instance, i.e., the instance used in the test phase of the competition. However, it is possible to run it for other instances by changing the code accordingly. The tracker approach exports solutions to the [solutions](https://github.com/almeidawarley/tsp_competition/blob/master/solutions) folder. The details of this algorithm can be found in section 2 of the [documentation](https://github.com/almeidawarley/tsp_competition/blob/master/AI4TSP_competition_track_1_Margaridinhas.pdf).
+
+## Genetic approach
+Open [genetic_algo.py](https://github.com/almeidawarley/tsp_competition/blob/master/genetic_algo.py) and choose the desired value for the parameters of the genetic approach. 
+
+```
+Params for the algorithm
+  nodes_num (int)          : number of nodes in the problem instance
+  seed (int)               : random seed for the problem instance
+  generation_num (int)     : number of population generations, used as stopping criterion (number of loops).
+  population_num (int)     : number of individus in population (to be attained after the reproduction step).
+  parents_num (int)        : number of parents in population (survivors after the selection step).
+  warm_dico_sol_lb (float) : minimal score tolerated in order to consider a solution from the dico in the warmstart.
+  monte_carlo (int)        : number of consecutive evaluations of a solution performed with check_solution during evaluation step.
+  dico_filename (str)      : name of preexisting dico (put None if does not want to use one) to perform warmstart.
+  save_under (str)         : name of files to save the next generations' dicos.
+  mutation_proba (float)   : Percentage, probability that mutation occurs to an individu during the mutation step.
+```
+
+ A sample of solutions found by the genetic approach can be found in the [genetic_algo](https://github.com/almeidawarley/tsp_competition/blob/master/genetic_algo/) folder, together with the final dictionary used for the test phase. The genetic algorithm uses the [genetic_operators.py](https://github.com/almeidawarley/tsp_competition/blob/master/genetic_operators.py) and [mean_dico.py](https://github.com/almeidawarley/tsp_competition/blob/master/mean_dico.py) files. The former contains a class implementing all the genetic operators for the selection, reproduction and mutation steps, while the latter contains the utility functions necessary to save the solution check results. The latter also contains a very useful main function to find all solutions above a certain lower bound in the dictionary.
+
+## Dynamical programming approach:
+Open [dynamic_prog/dynamic.py](https://github.com/almeidawarley/tsp_competition/blob/master/dynamic_prog/dynamic.py) and choose the desired instance using variables *instance_number*, *use_validation_or_test* and *use_test*. Then, set variable *precomputed* to *False* to compute matrices E and TT for the first time for that particular instance, and that will be stored in subfolder *dynamic_prog/store_E_and_TT*. Once those tables are stored, it will be possible to run again the same method on the same instance with *precomputed* to *True* to avoid recomputing E and TT. Finally, the last parameter is the number of steps to look ahead in the algorithm, encoded in the variable *E_dimensions*. The details of this algorithm is detailed in the appendix of the [documentation](https://github.com/almeidawarley/tsp_competition/blob/master/AI4TSP_competition_track_1_Margaridinhas.pdf). The solutions will be stored in the subfolder *dynamic_prog/dyn_solutions*.
+
+## Graphical analysis of solutions:
+Open [graphical_analysis/analysis.py](https://github.com/almeidawarley/tsp_competition/blob/master/graphical_analysis/analysis.py) and choose the desired instance and solution in the main() (by changing the variables *instance_number*, *use_validation_or_test*, *use_test*, and *sol*). Then run the file. An image analysis.png will be created.
