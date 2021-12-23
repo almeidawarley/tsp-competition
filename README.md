@@ -18,7 +18,7 @@ fbd8cbfb.out: {simulations: 100, iterations: 1000, feasibility_threshold: 0.8, g
 1c116019.out: {simulations: 100, iterations: 1000, feasibility_threshold: 0.3, gap_threshold: 0.05, score: 11.066891}
 c40d86d0.out: {simulations: 1000, iterations: 1000, feasibility_threshold: 0.8, gap_threshold: 0.1, score: 11.197023}
 c923a5b2.out: {simulations: 100, iterations: 1000, feasibility_threshold: 0.6, gap_threshold: 0.05, score: 11.215753}
-26633496.out: {simulations: 100, iterations: 10000, feasibility_threshold: 0.8, gap_threshold: 0.2, score: 11.282869}
+26633496.out: {simulations: 100, iterations: 1000, feasibility_threshold: 0.8, gap_threshold: 0.2, score: 11.282869}
 ```
 
 The genetic algorithm will take every solution in the `.out` format that are found in a folder with name `warley` as a warm start. This mean we simply copied the files that had very good scores, listed above, from the [solutions](https://github.com/almeidawarley/tsp_competition/blob/master/solutions) folder into the `warley` folder. Here is an example :
